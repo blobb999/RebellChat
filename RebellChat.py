@@ -26,6 +26,7 @@ KEY_SIZE = 32
 NONCE_SIZE = 16
 MAC_SIZE = 16
 
+
 def get_drive_info(drive_letter):
     drive_path = f"{drive_letter}:\\"
     kernel32 = ctypes.windll.kernel32
@@ -159,6 +160,7 @@ class RebellChat:
                     self.key = key.encode()
                     self.password = self.decrypt_password(encrypted_password)
 
+
     def set_password(self):
         password = askstring("Set Password", "Enter the password:", show='*')
         if password:
@@ -241,6 +243,7 @@ class RebellChat:
                 self.update_users_list([self.username])  # Add server username to the user list
             except Exception as e:
                 messagebox.showerror("Error", f"Could not start server: {e}")
+
 
     def stop_server(self):
         if self.is_server and self.is_connected:
@@ -329,7 +332,6 @@ class RebellChat:
                 conn.sendall(encrypted_message.encode())
 
 #######################################################################
-                
     def decrypt_password(self, encrypted_password):
         try:
             cipher_suite = Fernet(self.key)
@@ -474,7 +476,6 @@ class RebellChat:
                         encrypted_user_list_message = message.split(":", 1)[1]
                         decrypted_user_list_message = self.decrypt_message(encrypted_user_list_message)
                         user_list = decrypted_user_list_message.split(",")
-                        #print(f"Received user list: {user_list}")  # Debugging print
                         if self.is_server:
                             self.update_users_list(user_list)
                         else:
@@ -482,17 +483,14 @@ class RebellChat:
 
                 elif message.startswith("USERLIST:"):
                     user_list = message.split(":", 1)[1].split(",")
-                    #print(f"Received encrypted user list: {user_list}")  # Debugging print
                     try:
                         decrypted_user_list = [self.decrypt_password(user) for user in user_list]
-                        print(f"Decrypted user list: {decrypted_user_list}")  # Debugging print
                         if self.is_server:
                             self.update_users_list(decrypted_user_list)
                         else:
                             self.update_users_list(decrypted_user_list[1:])  # Remove the client's own username from the list
                     except Exception as e:
-                        continue
-                        #print(f"Error decrypting user list: {e}")  # Debugging print
+                        break
                 else:
                     if self.is_server:
                         for c_conn in self.clients.values():
@@ -538,11 +536,9 @@ class RebellChat:
                 return False
         return True
 
-    def add_message_to_chat(self, message):
-        #print(f"Adding message to chat: {message}")  # Print the message for debugging
-        formatted_message = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n"  # Add a newline character to the end of the message
-        #print(f"Formatted message: {formatted_message}")  # Print the formatted message for debugging
 
+    def add_message_to_chat(self, message):
+        formatted_message = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n"  # Add a newline character to the end of the message
         self.chat_box.config(state=tk.NORMAL)
         self.chat_box.insert(tk.END, formatted_message)
         self.chat_box.config(state=tk.DISABLED)
