@@ -1,22 +1,22 @@
+import argparse
+import base64
+import configparser
+import ctypes
+import json
+import os
+import shutil
 import socket
+import ssl
+import sys
+import tempfile
 import threading
 import tkinter as tk
-from tkinter import scrolledtext, messagebox
-from tkinter.simpledialog import askstring, askinteger
+from tkinter import ttk
 from datetime import datetime
-import configparser
-import json
-import base64
-import os
-import ctypes
+from tkinter import messagebox, scrolledtext
+from tkinter.simpledialog import askinteger, askstring
 from cryptography.fernet import Fernet
 from ciphertext import SALT_SIZE, derive_key, encrypt, decrypt
-import ssl
-import tempfile
-import shutil
-from create_cert import create_temp_ssl_cert_and_key
-import sys
-import argparse
 
 # Define constants
 SALT_SIZE = 16
@@ -25,7 +25,6 @@ TAG_SIZE = 16
 KEY_SIZE = 32
 NONCE_SIZE = 16
 MAC_SIZE = 16
-
 
 def get_drive_info(drive_letter):
     drive_path = f"{drive_letter}:\\"
@@ -60,12 +59,6 @@ class RebellChat:
         self.failed_attempts = {}  # Add a failed_attempts dictionary
 
         self.key = self.get_encryption_key()
-        self.create_widgets()
-        
-        if start_server:
-            self.master.after(100, self.start_server)
-
-        self.ssl_cert_path, self.ssl_key_path = None, None
 
         # Initialize the chat_window attribute
         self.chat_window = scrolledtext.ScrolledText(self.master, wrap=tk.WORD, font=("Arial", 12))
@@ -89,23 +82,45 @@ class RebellChat:
         self.sock = None
         self.clients = {}
         self.create_widgets()
+        
+        if start_server:
+            self.master.after(100, self.start_server)
+        self.ssl_cert_path, self.ssl_key_path = None, None        
 
-    def create_widgets(self):        
+    def create_widgets(self):
+
+        self.main_frame = tk.Frame(self.master, bg="white")
+        self.main_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.main_frame.columnconfigure(0, weight=1)
+        self.main_frame.rowconfigure(0, weight=1)
+        
         self.chat_box = scrolledtext.ScrolledText(self.master, wrap=tk.WORD, font=("Arial", 12))
         self.chat_box.config(state=tk.DISABLED)
-        self.chat_box.place(x=10, y=10, width=580, height=400)
+        self.chat_box.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.chat_box.columnconfigure(0, weight=1)
+        self.chat_box.rowconfigure(0, weight=1)
 
         self.users_list = tk.Listbox(self.master, font=("Arial", 12))
-        self.users_list.place(x=600, y=10, width=190, height=400)
+        self.users_list.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+        self.users_list.rowconfigure(0, weight=1)
 
         self.message_entry = tk.Entry(self.master, font=("Arial", 12))
-        self.message_entry.place(x=10, y=420, width=580, height=30)
-
+        self.message_entry.grid(row=1, column=0, padx=10, pady=10, sticky="ew", rowspan=2)
+        
         self.send_button = tk.Button(self.master, text="Send", font=("Arial", 12), command=self.send_message)
-        self.send_button.place(x=600, y=420, width=190, height=30)
+        self.send_button.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
+
         self.message_entry.bind('<Return>', self.send_message_event)
 
         self.menu_bar = tk.Menu(self.master)
+
+        self.light_style = ttk.Style()
+        self.light_style.theme_use('clam')
+        self.light_style.configure('LightSizegrip.TSizegrip', background='white')
+
+        self.dark_style = ttk.Style()
+        self.dark_style.theme_use('clam')
+        self.dark_style.configure('DarkSizegrip.TSizegrip', background='black')
 
         self.server_menu = tk.Menu(self.menu_bar, tearoff=0)
         self.server_menu.add_command(label="Start Server", command=self.start_server)
@@ -120,13 +135,51 @@ class RebellChat:
         self.settings_menu.add_command(label="Set Server IP", command=self.set_server_ip)
         self.settings_menu.add_command(label="Set Server Port", command=self.set_server_port)
         self.settings_menu.add_command(label="Set Password", command=self.set_password)
+        self.settings_menu.add_separator()
+        
+        self.mode_var = tk.BooleanVar()
+        self.mode_var.set(False)  # set initial mode to light
+        
+        def toggle_mode():
+            mode = self.mode_var.get()
+            if mode:  # dark mode
+                self.master.config(bg="black")
+                self.chat_box.config(bg="black", fg="white")
+                self.users_list.config(bg="black", fg="white")
+                self.message_entry.config(bg="black", fg="white")
+                self.send_button.config(bg="black", fg="white")
+                sizegrip.config(style='DarkSizegrip.TSizegrip')
+                self.main_frame.config(bg="black")
+                self.menu_bar.config(fg="white")
+            else:  # light mode
+                self.master.config(bg="white")
+                self.chat_box.config(bg="white", fg="black")
+                self.users_list.config(bg="white", fg="black")
+                self.message_entry.config(bg="white", fg="black")
+                self.send_button.config(bg="white", fg="black")
+                sizegrip.config(style='LightSizegrip.TSizegrip')
+                self.main_frame.config(bg="white")
+                self.menu_bar.config(fg="black")
+                
+        self.settings_menu.add_checkbutton(label="Dark mode", variable=self.mode_var, command=toggle_mode)
 
         self.menu_bar.add_cascade(label="Server", menu=self.server_menu)
         self.menu_bar.add_cascade(label="Client", menu=self.client_menu)
         self.menu_bar.add_cascade(label="Settings", menu=self.settings_menu)
-
+        
         self.master.config(menu=self.menu_bar)
+        
+        # Configure grid columns and rows to be resizable
+        self.master.columnconfigure(0, weight=1)
+        self.master.columnconfigure(1, weight=1)
+        self.master.rowconfigure(0, weight=1)
+        self.master.rowconfigure(1, weight=0)
+        
+        # Add sizegrip in the bottom right corner
+        sizegrip = ttk.Sizegrip(self.master)
+        sizegrip.grid(row=1, column=1, sticky="se")
 
+    
     def close_app(self):
         if self.is_connected:
             if messagebox.askyesno("Close Application", "You are still connected. Are you sure you want to close the application?"):
@@ -159,7 +212,6 @@ class RebellChat:
                 if key:
                     self.key = key.encode()
                     self.password = self.decrypt_password(encrypted_password)
-
 
     def set_password(self):
         password = askstring("Set Password", "Enter the password:", show='*')
@@ -244,7 +296,6 @@ class RebellChat:
             except Exception as e:
                 messagebox.showerror("Error", f"Could not start server: {e}")
 
-
     def stop_server(self):
         if self.is_server and self.is_connected:
             for conn in self.clients.values():
@@ -275,6 +326,7 @@ class RebellChat:
                 self.is_connected = True
                 threading.Thread(target=self.receive_message, args=(self.sock, None)).start()
                 self.send_message(is_username=True)  # Send username to the server
+                self.update_users_list([self.username])  # Add this line to add the client's username to the user list
             except Exception as e:
                 messagebox.showerror("Error", f"Could not connect to server: {e}")
 
@@ -332,6 +384,7 @@ class RebellChat:
                 conn.sendall(encrypted_message.encode())
 
 #######################################################################
+                
     def decrypt_password(self, encrypted_password):
         try:
             cipher_suite = Fernet(self.key)
@@ -527,7 +580,7 @@ class RebellChat:
                         messagebox.showerror("Error", "Wrong Password")
                 else:
                     print(f"Error in receive_message(): {e}")
-
+                   
     def is_socket_connected(self, conn):
         try:
             conn.sendall(b"")
@@ -535,7 +588,6 @@ class RebellChat:
             if e.winerror == 10038 or e.winerror == 10057:
                 return False
         return True
-
 
     def add_message_to_chat(self, message):
         formatted_message = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n"  # Add a newline character to the end of the message
