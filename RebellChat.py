@@ -16,6 +16,7 @@ from datetime import datetime
 from tkinter import messagebox, scrolledtext
 from tkinter.simpledialog import askinteger, askstring
 from cryptography.fernet import Fernet
+from create_cert import create_temp_ssl_cert_and_key
 from ciphertext import SALT_SIZE, derive_key, encrypt, decrypt
 
 # Define constants
